@@ -7,14 +7,12 @@
 #include "alt_types.h"
 #include "altera_avalon_timer_regs.h"
 #include "altera_avalon_pio_regs.h"
-#include "altera_up_avalon_rs232.h"
 
 #define MIN_UNIT 60
 #define MIN_DEC 600
 #define HOUR_UNIT 3600
 #define HOUR_DEC 36000
 #define BLINK_7SEG 0xFF
-#define READ_FIFO_EMPTY 0x0
 #define MSG_DATA 5
 
 volatile int edge_capture_button;
