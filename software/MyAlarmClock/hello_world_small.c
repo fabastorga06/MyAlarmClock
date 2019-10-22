@@ -1,28 +1,38 @@
 #include <time.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "sys/alt_stdio.h"
 #include "sys/alt_irq.h"
 #include "system.h"
+#include "alt_types.h"
 #include "altera_avalon_timer_regs.h"
 #include "altera_avalon_pio_regs.h"
+#include "altera_up_avalon_rs232.h"
 
 #define MIN_UNIT 60
 #define MIN_DEC 600
 #define HOUR_UNIT 3600
 #define HOUR_DEC 36000
 #define BLINK_7SEG 0xFF
+#define READ_FIFO_EMPTY 0x0
+#define MSG_DATA 5
 
 volatile int edge_capture_button;
 volatile int edge_capture_time;
+volatile int edge_capture_uart;
 
 volatile char *timer_status_ptr = (char *)( TIMER_BASE);
-volatile char *timer_control_ptr = (char *)(TIMER_BASE + 4);
-volatile char *timer_mask_ptr = (char *)(TIMER_BASE + 8);
-volatile char *timer_edge_cap_ptr = (char *)(TIMER_BASE + 12);
+volatile char *timer_control_ptr = (char *)(TIMER_BASE + 0x4);
+volatile char *timer_mask_ptr = (char *)(TIMER_BASE + 0x8);
+volatile char *timer_edge_cap_ptr = (char *)(TIMER_BASE + 0xC);
 
-volatile char *btn_direction_ptr = (volatile char *)(BUTTONS_BASE + 4);
-volatile char *btn_mask_ptr = (volatile char *)(BUTTONS_BASE + 8);
-volatile char *btn_edge_ptr = (volatile char *)(BUTTONS_BASE + 12);
+volatile char *btn_direction_ptr = (volatile char *)(BUTTONS_BASE + 0x4);
+volatile char *btn_mask_ptr = (volatile char *)(BUTTONS_BASE + 0x8);
+volatile char *btn_edge_ptr = (volatile char *)(BUTTONS_BASE + 0xC);
+
+volatile char *uart_rxdata_ptr = (volatile char *)(UART_BASE);
+volatile char *uart_status_ptr = (volatile char *)(UART_BASE + 0x8);
+volatile char *uart_control_ptr = (volatile char *)(UART_BASE + 0xC);
 
 volatile char *buttons = (char *) BUTTONS_BASE;
 volatile char *leds = (char *) LEDS_BASE;
@@ -45,6 +55,9 @@ int decs, units;
 char button_data = 15;
 short status = 0;
 short pos_ptr = 0;
+
+char rcv_data[MSG_DATA];
+unsigned char data_pos = 0;
 
 char convert_to_7seg(int num)
 {
@@ -103,11 +116,15 @@ void show_time(int hours, int minutes, int seconds)
 	*hex0 = units;
 }
 
+int concatenate_nums(int a, int b)
+{
+	return (a * 10) + b;
+}
+
 /********************************************************************/
-static void timer_manager(void * context)
+static void timer_handler(void * context)
 {
 	*timer_status_ptr = 0;
-	printf("actual: %d\n", actual_time);
 	actual_time++;
 
 	/* Check actual time and check alarm */
@@ -171,10 +188,10 @@ static void timer_manager(void * context)
 	}
 }
 
-static void buttons_manager(void * context)
+static void buttons_handler(void * context)
 {
 	volatile int * edge_capture_ptr = (volatile int*) context;
-	*edge_capture_ptr = *(volatile int *)(BUTTONS_BASE + 12);
+	*edge_capture_ptr = *(volatile int *)(BUTTONS_BASE + 0xC);
 	*btn_mask_ptr = 0xF;
 	*btn_edge_ptr = *edge_capture_ptr;
 
@@ -248,6 +265,46 @@ static void buttons_manager(void * context)
 	}
 }
 
+void print_data() {
+	for (int i = 0; i < MSG_DATA; ++i) {
+		printf("%c", rcv_data[i]);
+	}
+	printf("\n");
+}
+
+void uart_handler(void* context)
+{
+	unsigned int flag = 0;
+
+	if (*uart_rxdata_ptr == 's') {
+		flag = 1;
+	}
+	else if (flag) {
+		if (*uart_rxdata_ptr == 'f') {
+			flag = 0;
+		}
+		else {
+			rcv_data[data_pos] = *uart_rxdata_ptr;
+			data_pos++;
+		}
+	}
+	else {
+		data_pos = 0;
+		int res_h = concatenate_nums(rcv_data[1] - '0', rcv_data[2] - '0');
+		int res_m = concatenate_nums(rcv_data[3] - '0', rcv_data[4] - '0');
+
+		if (rcv_data[0] == 't')
+		{
+			actual_time = res_h * 3600 + res_m * 60;
+			new_time = actual_time;
+		}
+		else if (rcv_data[0] == 'a')
+		{
+			alarm = res_h * 3600 + res_m * 60;
+		}
+	}
+}
+
 /********************************************************************/
 
 static void init_buttons(void)
@@ -259,7 +316,7 @@ static void init_buttons(void)
 
 	alt_ic_isr_register( BUTTONS_IRQ_INTERRUPT_CONTROLLER_ID,
 						BUTTONS_IRQ,
-						buttons_manager,
+						buttons_handler,
 						edge_capture_ptr, 0);
 }
 
@@ -273,14 +330,21 @@ static void init_timer()
 
 	alt_ic_isr_register (TIMER_IRQ_INTERRUPT_CONTROLLER_ID,
 						TIMER_IRQ,
-						timer_manager,
+						timer_handler,
 						edge_capture_ptr,
 						0);
 }
 
 static void init_uart_port()
 {
+	void * edge_capture_ptr = (void*) &edge_capture_uart;
+	*uart_control_ptr = 0x80;
 
+	alt_ic_isr_register( UART_IRQ_INTERRUPT_CONTROLLER_ID,
+						 UART_IRQ,
+						 uart_handler,
+						 edge_capture_ptr,
+						 0);
 }
 
 /********************************************************************/

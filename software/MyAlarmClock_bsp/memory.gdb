@@ -3,7 +3,7 @@
 # Machine generated for CPU 'nios_cpu' in SOPC Builder design 'myalarmclock'
 # SOPC Builder design path: ../../myalarmclock.sopcinfo
 #
-# Generated: Sat Oct 19 23:29:20 CST 2019
+# Generated: Mon Oct 21 13:49:34 CST 2019
 
 # DO NOT MODIFY THIS FILE
 #
