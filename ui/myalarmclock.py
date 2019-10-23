@@ -2,21 +2,23 @@ from tkinter import *
 from tkinter import messagebox
 import serial
 
-#serial_port = serial.Serial('COM3', 9600, timeout=1)
+serial_port = serial.Serial('COM3', 9600, timeout=1)
 
 def set_time():
     if (int(e_time_h.get()) < 24 and int(e_time_min.get()) < 60):
-        time_msg = "st" + e_time_h.get() + e_time_min.get() + "f"
+        time_msg = "st" + e_time_h.get() + e_time_min.get() + "fx"
         print (time_msg)
-        #serial_port.write( time_msg )
+        time_as_bytes = str.encode(time_msg)
+        serial_port.write( time_as_bytes )
     else:
         messagebox.showerror("Error Time", "Invalid clock time, try again")
 
 def set_alarm():
     if (int(e_alarm_h.get()) < 24 and int(e_alarm_min.get()) < 60):
-        alarm_msg = "sa" + e_alarm_h.get() + e_alarm_min.get() + "f"
+        alarm_msg = "sa" + e_alarm_h.get() + e_alarm_min.get() + "fx"
         print (alarm_msg)
-        #serial_port.write( alarm_msg )
+        alarm_as_bytes = str.encode(alarm_msg)
+        serial_port.write( alarm_as_bytes )
     else:
         messagebox.showerror("Error Alarm", "Invalid clock alarm, try again")
 

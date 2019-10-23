@@ -57,6 +57,9 @@ short pos_ptr = 0;
 char rcv_data[MSG_DATA];
 unsigned char data_pos = 0;
 
+unsigned int reading = 0;
+unsigned int set_data = 0;
+
 char convert_to_7seg(int num)
 {
 	unsigned int result = 0;
@@ -263,23 +266,15 @@ static void buttons_handler(void * context)
 	}
 }
 
-void print_data() {
-	for (int i = 0; i < MSG_DATA; ++i) {
-		printf("%c", rcv_data[i]);
-	}
-	printf("\n");
-}
-
 void uart_handler(void* context)
 {
-	unsigned int flag = 0;
-
 	if (*uart_rxdata_ptr == 's') {
-		flag = 1;
+		reading = 1;
 	}
-	else if (flag) {
+	else if (reading) {
 		if (*uart_rxdata_ptr == 'f') {
-			flag = 0;
+			reading = 0;
+			set_data = 1;
 		}
 		else {
 			rcv_data[data_pos] = *uart_rxdata_ptr;
@@ -287,18 +282,23 @@ void uart_handler(void* context)
 		}
 	}
 	else {
-		data_pos = 0;
-		int res_h = concatenate_nums(rcv_data[1] - '0', rcv_data[2] - '0');
-		int res_m = concatenate_nums(rcv_data[3] - '0', rcv_data[4] - '0');
+		printf("%c\n", *uart_rxdata_ptr);
+		if (set_data)
+		{
+			set_data = 0;
+			data_pos = 0;
+			int res_h = concatenate_nums(rcv_data[1] - '0', rcv_data[2] - '0');
+			int res_m = concatenate_nums(rcv_data[3] - '0', rcv_data[4] - '0');
 
-		if (rcv_data[0] == 't')
-		{
-			actual_time = res_h * 3600 + res_m * 60;
-			new_time = actual_time;
-		}
-		else if (rcv_data[0] == 'a')
-		{
-			alarm = res_h * 3600 + res_m * 60;
+			if (rcv_data[0] == 't')
+			{
+				actual_time = res_h * 3600 + res_m * 60;
+				new_time = actual_time;
+			}
+			else if (rcv_data[0] == 'a')
+			{
+				alarm = res_h * 3600 + res_m * 60;
+			}
 		}
 	}
 }
@@ -353,7 +353,6 @@ int main()
 	init_buttons();
 	init_uart_port();
 
-	/* Event loop never exits. */
 	while (1);
 
 	return 0;
